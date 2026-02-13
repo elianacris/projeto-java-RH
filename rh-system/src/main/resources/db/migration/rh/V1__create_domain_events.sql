@@ -1,60 +1,30 @@
--- Migration inicial: Criação do schema e tabelas base
--- Schema: rh
-
--- Tabela: usuarios (módulo identidade)
-CREATE TABLE IF NOT EXISTS usuarios (
-    id UUID PRIMARY KEY,
-    login VARCHAR(100) NOT NULL UNIQUE,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    senha VARCHAR(255) NOT NULL,
-    ativo BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_usuarios_login ON usuarios(login);
-CREATE INDEX idx_usuarios_email ON usuarios(email);
-
--- Tabela: colaboradores (módulo rh)
-CREATE TABLE IF NOT EXISTS colaboradores (
-    id UUID PRIMARY KEY,
-    nome VARCHAR(255) NOT NULL,
-    cpf VARCHAR(11) NOT NULL UNIQUE,
-    email VARCHAR(255) NOT NULL,
-    data_admissao DATE NOT NULL,
-    cargo_id UUID NOT NULL,
-    departamento_id UUID NOT NULL,
-    status VARCHAR(20) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_colaboradores_cpf ON colaboradores(cpf);
-CREATE INDEX idx_colaboradores_email ON colaboradores(email);
-CREATE INDEX idx_colaboradores_status ON colaboradores(status);
-CREATE INDEX idx_colaboradores_departamento ON colaboradores(departamento_id);
-CREATE INDEX idx_colaboradores_cargo ON colaboradores(cargo_id);
-
--- Tabela: domain_events (event sourcing - módulo shared)
+-- Tabela de eventos (Event Store)
 CREATE TABLE IF NOT EXISTS domain_events (
     event_id UUID PRIMARY KEY,
     aggregate_id UUID NOT NULL,
     aggregate_type VARCHAR(255) NOT NULL,
     event_type VARCHAR(255) NOT NULL,
-    event_data JSONB NOT NULL,
-    occurred_on TIMESTAMP NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    event_version INT NOT NULL DEFAULT 1,
+    sequence_number BIGINT NOT NULL,
+
+    payload JSONB NOT NULL,
+    metadata JSONB,
+
+    occurred_on TIMESTAMPTZ NOT NULL,
+    persisted_on TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+
+    CONSTRAINT uk_aggregate_sequence UNIQUE(aggregate_id, sequence_number)
 );
 
-CREATE INDEX idx_domain_events_aggregate ON domain_events(aggregate_id);
-CREATE INDEX idx_domain_events_type ON domain_events(event_type);
-CREATE INDEX idx_domain_events_occurred ON domain_events(occurred_on);
+-- Índice para busca por aggregate
+CREATE INDEX idx_domain_events_aggregate
+    ON domain_events(aggregate_id, sequence_number ASC);
 
--- Comentários das tabelas
-COMMENT ON TABLE usuarios IS 'Tabela de usuários do sistema - Módulo Identidade';
-COMMENT ON TABLE colaboradores IS 'Tabela de colaboradores da empresa - Módulo RH';
-COMMENT ON TABLE domain_events IS 'Tabela de eventos de domínio - Event Sourcing';
+-- Índice para busca por tipo de evento
+CREATE INDEX idx_domain_events_type
+    ON domain_events(event_type, occurred_on DESC);
 
--- Comentários das colunas principais
-COMMENT ON COLUMN colaboradores.status IS 'Status do colaborador: ATIVO, AFASTADO, FERIAS, DESLIGADO';
-COMMENT ON COLUMN domain_events.event_data IS 'Dados do evento em formato JSON';
+-- Comentários
+COMMENT ON TABLE domain_events IS 'Event Store - Fonte da verdade (imutável)';
+COMMENT ON COLUMN domain_events.sequence_number IS 'Número sequencial para ordenação e optimistic locking';
+COMMENT ON COLUMN domain_events.payload IS 'Evento serializado em JSON';
