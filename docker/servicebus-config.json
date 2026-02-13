@@ -1,0 +1,35 @@
+{
+  "Logging": {
+    "Type": "File"
+  },
+  "UserInfo": {
+    "SharedAccessKey": "RootManageSharedAccessKey",
+    "SharedAccessKeyValue": "SAS_KEY_VALUE"
+  },
+  "Namespaces": [
+    {
+      "Name": "sbemulator",
+      "Queues": [
+        {
+          "Name": "rh-events"
+        },
+        {
+          "Name": "identidade-events"
+        }
+      ],
+      "Topics": [
+        {
+          "Name": "domain-events",
+          "Subscriptions": [
+            {
+              "Name": "rh-subscription"
+            },
+            {
+              "Name": "identidade-subscription"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
